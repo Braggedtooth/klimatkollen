@@ -4,16 +4,16 @@ import { useRouter } from 'next/router'
 import { ParsedUrlQuery } from 'querystring'
 import { ClimateDataService } from '../../../utils/climateDataService'
 import { WikiDataService } from '../../../utils/wikiDataService'
-import { Municipality as TMunicipality } from '../../../utils/types'
+import { Steps, Municipality as TMunicipality } from '../../../utils/types'
 import { PolitycalRuleService as PoliticalRuleService } from '../../../utils/politicalRuleService'
+import { composeDescription } from '../../../utils/composeSeoDescription'
+import MetaTags from '../../../components/MetaTags'
 
-const Municipality = dynamic(() => import('../../../components/Municipality/Municipality'))
+const Municipality = dynamic(
+  () => import('../../../components/Municipality/Municipality'),
+)
 
-export const CHARTS = [
-  'historiska-utslapp',
-  'framtida-prognos',
-  'parisavtalet',
-]
+export const CHARTS = ['historiska-utslapp', 'framtida-prognos', 'parisavtalet'] as const
 
 type Props = {
   municipality: TMunicipality
@@ -21,13 +21,9 @@ type Props = {
   municipalitiesName: Array<string>
 }
 
-export default function Step({
-  id,
-  municipality,
-  municipalitiesName,
-}: Props) {
+export default function Step({ id, municipality, municipalitiesName }: Props) {
   const router = useRouter()
-  const { step } = router.query
+  const { step } = router.query as { step: Steps }
   const stepString = typeof step === 'string' ? step : CHARTS[0]
   const stepIndex = CHARTS.indexOf(stepString) > -1 ? CHARTS.indexOf(stepString) : 1
   const stepNum = stepIndex
@@ -51,14 +47,22 @@ export default function Step({
   }
 
   return (
-    <Municipality
-      municipality={municipality}
-      step={stepNum}
-      onNextStep={stepIndex < CHARTS.length - 1 ? onNext : undefined}
-      onPreviousStep={stepIndex > 0 ? onPrevious : undefined}
-      coatOfArmsImage={municipality.CoatOfArmsImage?.ImageUrl || null}
-      municipalitiesName={municipalitiesName}
-    />
+    <div>
+      <MetaTags
+        title={municipality.Name}
+        description={composeDescription(municipality, stepString)}
+        imageUrl={municipality.CoatOfArmsImage?.ImageUrl || ''}
+        url={`https://klimatkollen.se/kommun/${id}/${stepString}`}
+      />
+      <Municipality
+        municipality={municipality}
+        step={stepNum}
+        onNextStep={stepIndex < CHARTS.length - 1 ? onNext : undefined}
+        onPreviousStep={stepIndex > 0 ? onPrevious : undefined}
+        coatOfArmsImage={municipality.CoatOfArmsImage?.ImageUrl || null}
+        municipalitiesName={municipalitiesName}
+      />
+    </div>
   )
 }
 
@@ -69,7 +73,10 @@ interface Params extends ParsedUrlQuery {
 const cache = new Map()
 
 export const getServerSideProps: GetServerSideProps = async ({ params, res }) => {
-  res.setHeader('Cache-Control', `public, stale-while-revalidate=60, max-age=${((60 * 60) * 24) * 7}`)
+  res.setHeader(
+    'Cache-Control',
+    `public, stale-while-revalidate=60, max-age=${60 * 60 * 24 * 7}`,
+  )
 
   const id = (params as Params).municipality as string
   if (cache.get(id)) return cache.get(id)
@@ -88,9 +95,8 @@ export const getServerSideProps: GetServerSideProps = async ({ params, res }) =>
   municipality.CoatOfArmsImage = wikiDataMunicipality.CoatOfArmsImage
   municipality.Image = wikiDataMunicipality.Image
 
-  municipality.HistoricalEmission.HistoricalEmissionChangeRank = municipalities.find(
-    (m) => m.Name === municipality.Name,
-  )?.HistoricalEmission.HistoricalEmissionChangeRank || null
+  municipality.HistoricalEmission.HistoricalEmissionChangeRank = municipalities.find((m) => m.Name === municipality.Name)?.HistoricalEmission
+    .HistoricalEmissionChangeRank || null
 
   municipality.PoliticalRule = politicalRuleService.getPoliticalRule(id)
 

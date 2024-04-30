@@ -90,3 +90,4 @@ export type RankedData = {
     rank?: number | undefined;
   }[]
 }
+export type Steps = 'historiska-utslapp' | 'framtida-prognos' | 'parisavtalet'
